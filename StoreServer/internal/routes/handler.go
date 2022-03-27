@@ -50,7 +50,8 @@ func (h *Handler) Init(cfg *config.Config) *echo.Echo {
 
 	// Init log level
 	router.Debug = cfg.ServerMode != config.Dev
-	router.Use(Middleware(cfg))
+
+	//router.Use(Middleware(cfg))
 	// Init router
 	router.GET("/ping", func(c echo.Context) error {
 		return c.String(http.StatusOK, "pong")
@@ -68,7 +69,11 @@ func (h *Handler) ProductsByCategories(c echo.Context) error {
 		return c.JSON(500, err.Error())
 	}
 
-	return c.JSON(200, resp)
+	return c.Render(200, "index.html", map[string]interface{}{
+		"name":            resp.Name,
+		"childCategories": resp.SubCategories,
+		"products":        resp.Products,
+	})
 }
 
 func (h *Handler) GetStartCategories(c echo.Context) error {
@@ -77,7 +82,11 @@ func (h *Handler) GetStartCategories(c echo.Context) error {
 		return c.JSON(500, err.Error())
 	}
 
-	return c.JSON(200, resp)
+	return c.Render(200, "index.html", map[string]interface{}{
+		"name":            resp.Name,
+		"childCategories": resp.SubCategories,
+		"products":        resp.Products,
+	})
 }
 
 type AuthClaims struct {

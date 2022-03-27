@@ -4,7 +4,6 @@ import (
 	"Gateway/internal/config"
 	"Gateway/internal/service"
 	"Gateway/internal/service/db"
-	"encoding/json"
 	"github.com/golang-jwt/jwt"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -39,12 +38,12 @@ func (h *Handler) Init(cfg *config.Config) *echo.Echo {
 	// Init echo handler
 	router := echo.New()
 
-	//renderer := &TemplateRenderer{
-	//	templates: template.Must(template.ParseGlob("./internal/views/*.html")),
-	//}
-	//router.Renderer = renderer
-	//
-	//router.Static("static", "./internal/views")
+	renderer := &TemplateRenderer{
+		templates: template.Must(template.ParseGlob("./internal/views/*.html")),
+	}
+	router.Renderer = renderer
+
+	router.Static("static", "./internal/views")
 
 	// Init middleware
 	router.Use(
@@ -61,13 +60,24 @@ func (h *Handler) Init(cfg *config.Config) *echo.Echo {
 		return c.String(http.StatusOK, "pong")
 	})
 
-	router.Use(ApiGateway)
+	//router.Use(ApiGateway)
 
-	router.GET("/Auth", nil)
+	router.GET("/auth", h.AuthForm)
+	router.GET("/register", h.RegisterForm)
 	router.POST("/api/user/login", h.UserLogin)
 	router.POST("/api/user/signup", h.UserSignup)
 
 	return router
+}
+
+func (h *Handler) AuthForm(c echo.Context) error {
+
+	return c.Render(200, "login.html", nil)
+}
+
+func (h *Handler) RegisterForm(c echo.Context) error {
+
+	return c.Render(200, "register.html", nil)
 }
 
 func ApiGateway(next echo.HandlerFunc) echo.HandlerFunc {
@@ -94,10 +104,26 @@ func ApiGateway(next echo.HandlerFunc) echo.HandlerFunc {
 
 func (h *Handler) UserSignup(c echo.Context) error {
 	authType := c.QueryParam("type")
+	if authType == "" {
+		authType = "2"
+	}
 	c.Response().Header().Set("Content-Type", "application/json")
-	var user db.User
-	json.NewDecoder(c.Request().Body).Decode(&user)
-	user.Password = getHash([]byte(user.Password))
+	login := c.FormValue("Login")
+	if login == "" {
+		return c.JSON(401, "bad login")
+	}
+
+	password := c.FormValue("Password")
+	if password == "" {
+		return c.JSON(401, "bad password")
+	}
+
+	email := c.FormValue("Email")
+	if email == "" {
+		return c.JSON(401, "bad email")
+	}
+
+	user := db.User{Login: login, Password: getHash([]byte(password)), Email: email}
 
 	id, err := h.Services.DB.AddUser(user)
 	if err != nil {
@@ -110,40 +136,42 @@ func (h *Handler) UserSignup(c echo.Context) error {
 		log.Println(err)
 		return c.JSON(500, err.Error())
 	}
-	return c.JSON(307, "http://localhost:8081/api/user/login")
+	return c.Redirect(302, "http://localhost:8081/auth")
 }
 
 func (h *Handler) UserLogin(c echo.Context) error {
 	c.Response().Header().Set("Content-Type", "application/json")
-	var user db.User
 	var dbUser *db.User
-	json.NewDecoder(c.Request().Body).Decode(&user)
+	login := c.FormValue("Login")
+	password := c.FormValue("Password")
 
-	dbUser, err := h.Services.DB.GetUser(user.Login, user.Email)
+	dbUser, err := h.Services.DB.GetUser(login)
 	if err != nil {
-		return c.JSONBlob(http.StatusInternalServerError, []byte(`{"message":"`+err.Error()+`"}`))
+		log.Println(err)
+		return c.Redirect(302, "http://localhost:8081/auth")
 	}
-	userPass := []byte(user.Password)
+	userPass := []byte(password)
 	dbPass := []byte(dbUser.Password)
 
 	passErr := bcrypt.CompareHashAndPassword(dbPass, userPass)
 
 	if passErr != nil {
 		log.Println(passErr)
-		return c.JSON(http.StatusUnauthorized, []byte("Wrong Credentials!"))
+		return c.Redirect(302, "http://localhost:8081/auth")
 	}
 
 	roleId, err := h.Services.DB.GetRoleByUserID(dbUser.Id)
 	if err != nil {
 		log.Println(err)
-		return c.JSONBlob(http.StatusInternalServerError, []byte(`{"message":"`+err.Error()+`"}`))
+		return c.Redirect(302, "http://localhost:8081/auth")
 	}
 
 	jwtToken, err := GenerateJWT(h.cfg.Secretkey, dbUser.Id, roleId, dbUser.Login)
 	if err != nil {
-		return c.JSONBlob(http.StatusInternalServerError, []byte(`{"message":"`+err.Error()+`"}`))
+		return c.Redirect(302, "http://localhost:8081/auth")
 	}
 
+	//TODO store token in cookie and read
 	return c.JSONBlob(http.StatusOK, []byte(`{"token":"`+jwtToken+`"}`))
 }
 
@@ -156,13 +184,13 @@ func getHash(pwd []byte) string {
 }
 
 type AuthClaims struct {
-	Id     string `json:"id"`
+	Id     int    `json:"id"`
 	Login  string `json:"login"`
 	RoleID int    `json:"role_id"`
 	jwt.StandardClaims
 }
 
-func GenerateJWT(secret []byte, id string, role int, login string) (string, error) {
+func GenerateJWT(secret []byte, id int, role int, login string) (string, error) {
 	claims := AuthClaims{id, login, role, jwt.StandardClaims{}}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

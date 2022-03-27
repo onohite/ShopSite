@@ -1,41 +1,42 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <meta charset="UTF-8">
-        <title>Каталог</title>
-        <link rel="icon" href="images/logo-small.svg">
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet"
-              integrity="sha384-giJF6kkoqNQ00vy+HMDP7azOuL0xtbfIcaT9wjKHr8RbDVddVHyTfAAsrekwKmP1" crossorigin="anonymous">
-        <link rel="stylesheet" href="style.css">
-        <script src="static/trigger.js"></script>
-    </head>
-    <body>
+<head>
+    <meta charset="UTF-8">
+    <title>Каталог</title>
+    <link rel="icon" href="images/logo-small.svg">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-giJF6kkoqNQ00vy+HMDP7azOuL0xtbfIcaT9wjKHr8RbDVddVHyTfAAsrekwKmP1" crossorigin="anonymous">
+    <link rel="stylesheet" href="style.css">
+    <script src="static/trigger.js"></script>
+</head>
+<body>
 
-        <div>
-            <div class="container-fluid">
-                <h1 class="display-1">Категории</h1>
-            </div>
+<div>
+    <div class="container-fluid">
+        <h1 class="display-1">{{index . "name"}}</h1>
+    </div>
+</div>
+<ul>
+    <ul class="list-group list-group-flush">
+        {{range .childCategories}}
+        <a class="list-group-item" href="http://localhost:8080/categories/{{.Id}}">
+            {{.Name}}
+        </a>
+        {{end}}
+    </ul>
+</ul>
+
+<ul style="display: flex;" id="items">
+
+    {{range .products}}
+    <div class="card" style="width: 18rem;  margin: 10px;">
+        <img class="card-img-top" style="width:auto ; height: 18rem;" src="{{.ImageUrl}}" alt="Card image cap">
+        <div class="card-body">
+            <h5 class="card-title">Название: {{.Name}}</h5>
+            <p class="card-text">Цена: {{.Price}} ₽</p>
         </div>
-        <ul>
-            <ul class="list-group list-group-flush">
-            {{range $kl := .}}
-                <a class="list-group-item" onclick="showItems({{$kl.id}})">
-                    {{$kl.Name}}
-                </a>
-                {{ $subs := $kl.SubCategories}}
-                {{if not $subs}}
-                {{else}}
-                    {{range $cat := $subs}}
-                        <script>
-                            setSubCategory({{$cat.id}})
-                        </script>
-                        <a id="sub{{$cat.id}}"></a>
-                    {{end}}
-                {{end}}
-            {{end}}
-            </ul>
-        </ul>
-
-        <ul style="display: flex;" id="items"></ul>
-    </body>
+    </div>
+    {{end}}
+</ul>
+</body>
 </html>

@@ -5,7 +5,7 @@ type DBService interface {
 
 	// User methods
 	AddUser(User) (string, error)
-	GetUser(string, string) (*User, error)
+	GetUser(string) (*User, error)
 	SetRoleForUser(string, string) error
-	GetRoleByUserID(string) (int, error)
+	GetRoleByUserID(int) (int, error)
 }

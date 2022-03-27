@@ -106,3 +106,10 @@ services:
       - store_server
       - user_db
     restart: unless-stopped
+
+  web:
+    build: ./Frontend
+    ports:
+      - "8082:8082"
+    environment:
+      NODE_ENV: production

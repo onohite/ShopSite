@@ -7,42 +7,39 @@ import (
 	"time"
 )
 
-//Response example
-type Response struct {
-	Categories []struct {
-		Id       int    `json:"id"`
-		Name     string `json:"Name"`
-		Products []struct {
-			Id       int    `json:"id"`
-			Name     string `json:"Name"`
-			ImageUrl string `json:"ImageUrl"`
-			Price    string `json:"Price"`
-		} `json:"Products"`
-		SubCategories []struct {
-			Name string `json:"Name"`
-		} `json:"SubCategories"`
-	} `json:"Categories"`
+type Category struct {
+	Id            int           `bson:"id"`
+	Name          string        `bson:"name"`
+	SubCategories []SubCategory `bson:"childCategories"`
+	Products      []Product     `bson:"products"`
 }
 
-func (m *MongoCon) GetAllCategories() ([]bson.M, error) {
+type SubCategory struct {
+	Id   int    `bson:"id"`
+	Name string `bson:"name"`
+}
+
+type Product struct {
+	Id       int    `bson:"id"`
+	Name     string `bson:"name"`
+	ImageUrl string `bson:"image"`
+	Price    string `bson:"price"`
+}
+
+func (m *MongoCon) GetAllCategories() (*Category, error) {
 	ctx, cancel := context.WithTimeout(m.mongoConnCtx, time.Second*10)
 	defer cancel()
 	coll := m.mongoConn.Database("ShopRaspredel").Collection("Categories")
-	cursor, err := coll.Find(ctx, bson.M{})
+	var response Category
+	err := coll.FindOne(ctx, bson.M{}).Decode(&response)
 	if err != nil {
 		return nil, err
 	}
 
-	var responseMongo []bson.M
-	err = cursor.All(ctx, &responseMongo)
-	if err != nil {
-		return nil, err
-	}
-
-	return responseMongo, nil
+	return &response, nil
 }
 
-func (m *MongoCon) GetProductsById(id string) ([]bson.M, error) {
+func (m *MongoCon) GetProductsById(id string) (*Category, error) {
 	ctx, cancel := context.WithTimeout(m.mongoConnCtx, time.Second*10)
 	defer cancel()
 	coll := m.mongoConn.Database("ShopRaspredel").Collection("Categories")
@@ -50,16 +47,11 @@ func (m *MongoCon) GetProductsById(id string) ([]bson.M, error) {
 
 	}
 	idx, _ := strconv.Atoi(id)
-	cursor, err := coll.Find(ctx, bson.D{{"id", idx}})
+	var responseMongo Category
+	err := coll.FindOne(ctx, bson.D{{"id", idx}}).Decode(&responseMongo)
 	if err != nil {
 		return nil, err
 	}
 
-	var responseMongo []bson.M
-	err = cursor.All(ctx, &responseMongo)
-	if err != nil {
-		return nil, err
-	}
-
-	return responseMongo, nil
+	return &responseMongo, nil
 }
