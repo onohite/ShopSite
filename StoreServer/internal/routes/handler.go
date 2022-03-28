@@ -8,6 +8,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"html/template"
 	"io"
+	"log"
 	"net/http"
 )
 
@@ -51,7 +52,7 @@ func (h *Handler) Init(cfg *config.Config) *echo.Echo {
 	// Init log level
 	router.Debug = cfg.ServerMode != config.Dev
 
-	//router.Use(Middleware(cfg))
+	router.Use(Middleware(cfg))
 	// Init router
 	router.GET("/ping", func(c echo.Context) error {
 		return c.String(http.StatusOK, "pong")
@@ -90,7 +91,7 @@ func (h *Handler) GetStartCategories(c echo.Context) error {
 }
 
 type AuthClaims struct {
-	Id     string `json:"id"`
+	Id     int    `json:"id"`
 	Login  string `json:"login"`
 	RoleID int    `json:"role_id"`
 	jwt.StandardClaims
@@ -101,6 +102,7 @@ func Middleware(cfg *config.Config) echo.MiddlewareFunc {
 		return func(c echo.Context) error {
 			header := c.Request().Header.Get("Authorization")
 			if header == "" {
+				log.Println("empty header???")
 				return c.JSON(401, "Unauthorized")
 			}
 
@@ -113,17 +115,20 @@ func Middleware(cfg *config.Config) echo.MiddlewareFunc {
 			)
 
 			if err != nil {
+				log.Println(err)
 				return c.JSON(401, "Unauthorized")
 			}
 
 			claims, ok := token.Claims.(*AuthClaims)
 			if !ok {
+				log.Println(ok)
 				return c.JSON(401, "Unauthorized")
 			}
 
-			if claims.Login != "" && claims.Id != "" && claims.RoleID != 0 {
+			if claims.Login != "" && claims.Id != 0 && claims.RoleID != 0 {
 				return next(c)
 			}
+			log.Println(*claims)
 
 			return c.JSON(401, "Unauthorized")
 		}

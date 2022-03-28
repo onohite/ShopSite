@@ -6,12 +6,14 @@ from io import StringIO
 import jsonpickle
 import jwt
 from flask import Flask, redirect, url_for, flash, request, Request
+from flask.json import dump
 from flask_admin.babel import gettext, ngettext
 from flask_admin.contrib.sqla import ModelView
 from flask_admin.form import FormOpts
 from flask_admin.helpers import get_redirect_target, flash_errors
 from flask_admin.model.helpers import get_mdict_item_or_list
 from flask_sqlalchemy import SQLAlchemy
+from functools import wraps
 from flask import jsonify
 
 from flask_admin import Admin, expose
@@ -20,13 +22,13 @@ import pika
 from pika import BlockingConnection
 from werkzeug import Response
 
-app = Flask(__name__)
+app = Flask(__name__,static_url_path='',
+            static_folder='./static')
 app.debug = True
 
 app.config['FLASK_ENV'] = os.getenv("FLASK_ENV")
 # Scheme: "postgres+psycopg2://<USERNAME>:<PASSWORD>@<IP_ADDRESS>:<PORT>/<DATABASE_NAME>"
-app.config[
-    'SQLALCHEMY_DATABASE_URI'] = f'postgresql://{os.getenv("POSTGRES_USER")}:{os.getenv("POSTGRES_PASSWORD")}@pg_db:5432/{os.getenv("POSTGRES_DB")}'
+app.config['SQLALCHEMY_DATABASE_URI'] = f'postgresql://{os.getenv("POSTGRES_USER")}:{os.getenv("POSTGRES_PASSWORD")}@pg_db:5432/{os.getenv("POSTGRES_DB")}'
 # app.config['SQLALCHEMY_DATABASE_URI'] = f'postgresql://flask:flask@localhost:5432/flask'
 app.config['SECRET_KEY'] = "anysecret"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
@@ -34,46 +36,46 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
 db = SQLAlchemy(app)
 
 connection = pika.BlockingConnection(pika.ConnectionParameters('rabbitmq'))
+# connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
 
-
-class middleware():
-    '''
-    Simple WSGI middleware
-    '''
-
-    def __init__(self, app):
-        self.app = app
-
-    def __call__(self, environ, start_response):
-        request = Request(environ)
-
-        if "admin" not in request.url:
-            res = Response(u'Authorization failed', mimetype='text/plain', status=401)
-            return res(environ, start_response)
-
-        claims = request.headers.get("Authorization")
-        if claims == "":
-            res = Response(u'Authorization failed', mimetype='text/plain', status=401)
-            return res(environ, start_response)
-
-        token = jwt.decode(claims, os.getenv("SECRET_KEY"), algorithms=["HS256"])
-        if token['login'] == "":
-            res = Response(u'Authorization failed', mimetype='text/plain', status=401)
-            return res(environ, start_response)
-        if token['role_id'] == 0:
-            res = Response(u'Authorization failed', mimetype='text/plain', status=401)
-            return res(environ, start_response)
-        elif token['role_id'] != 1:
-            res = Response(u'Authorization failed', mimetype='text/plain', status=401)
-            return res(environ, start_response)
-        if token['id'] == "":
-            res = Response(u'Authorization failed', mimetype='text/plain', status=401)
-            return res(environ, start_response)
-
-        return self.app(environ, start_response)
-
-
-app.wsgi_app = middleware(app.wsgi_app)
+# class middleware():
+#     '''
+#     Simple WSGI middleware
+#     '''
+#
+#     def __init__(self, app):
+#         self.app = app
+#
+#     def __call__(self, environ, start_response):
+#         request = Request(environ)
+#
+#         if "admin" not in request.url:
+#             res = Response(u'Authorization failed', mimetype='text/plain', status=401)
+#             return res(environ, start_response)
+#
+#         claims = request.headers.get("Authorization")
+#         if claims == "":
+#             res = Response(u'Authorization failed', mimetype='text/plain', status=401)
+#             return res(environ, start_response)
+#
+#         token = jwt.decode(claims, os.getenv("SECRET_KEY"), algorithms=["HS256"])
+#         if token['login'] == "":
+#             res = Response(u'Authorization failed', mimetype='text/plain', status=401)
+#             return res(environ, start_response)
+#         if token['role_id'] == 0:
+#             res = Response(u'Authorization failed', mimetype='text/plain', status=401)
+#             return res(environ, start_response)
+#         elif token['role_id'] != 1:
+#             res = Response(u'Authorization failed', mimetype='text/plain', status=401)
+#             return res(environ, start_response)
+#         if token['id'] == "":
+#             res = Response(u'Authorization failed', mimetype='text/plain', status=401)
+#             return res(environ, start_response)
+#
+#         return self.app(environ, start_response)
+#
+#
+# app.wsgi_app = middleware(app.wsgi_app)
 
 
 class CategoryConnection:
@@ -558,9 +560,16 @@ admin = Admin(app, name="Каталог", template_mode="bootstrap3")
 admin.add_view(CategoryView(Category, db.session, name="Категории"))
 admin.add_view(ItemView(Items, db.session, name="Товары"))
 
+
 db.create_all()
 
 
-@app.route('/')
-def hello_world():
-    return redirect(url_for('admin.index'))
+@app.before_request
+def checkToken():
+    if request.full_path == ('/admin/?'):
+        auth = ''
+        if request.headers['Authorization']:
+            auth = request.headers['Authorization']
+        token = jwt.decode(auth, os.getenv("SECRET_KEY"), algorithms=["HS256"])
+        if token['role_id'] != 1:
+            return

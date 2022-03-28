@@ -1,4 +1,5 @@
-version: "3.9"  # optional since v1.27.0
+version: "3.9"
+
 services:
   flask_admin:
     build: ./flaskAdmin
@@ -106,10 +107,3 @@ services:
       - store_server
       - user_db
     restart: unless-stopped
-
-  web:
-    build: ./Frontend
-    ports:
-      - "8082:8082"
-    environment:
-      NODE_ENV: production

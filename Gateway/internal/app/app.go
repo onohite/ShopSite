@@ -33,6 +33,7 @@ func Run() {
 	if err != nil {
 		log.Panic(err)
 	}
+
 	handler := routes.NewHandler(services, cfg)
 
 	go func(srv *echo.Echo) {
